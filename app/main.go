@@ -1,9 +1,8 @@
-package main
-
-import (
-	"fmt"
+package main 
+import ( "fmt"
 	"net"
 	"os"
+  "strings"
 )
 
 func initTcp() (net.Listener) {
@@ -26,6 +25,28 @@ func getClientConnection(l net.Listener) (net.Conn) {
   return conn
 }
 
+func inputParser(data []byte) ([]byte) {
+  var pong = []byte("+PONG\r\n")
+
+  pingSubstr := string("ping")
+  echoSubstr := string("echo")
+  
+  dataStr := string(data)
+  dataArr := strings.Split(dataStr, "\r\n")
+  
+  for i, str := range(dataArr) {
+    if strings.Contains(strings.ToLower(str), pingSubstr) {
+      return pong
+
+    } else if strings.Contains(strings.ToLower(str), echoSubstr) {
+      return []byte("+" + dataArr[i+2] + "\r\n")
+    }
+  }
+
+  return []byte("")
+}
+
+
 func connectionEcho(conn net.Conn) {
   for {
     buf := make([]byte, 1024)
@@ -36,7 +57,8 @@ func connectionEcho(conn net.Conn) {
       return
     }
 
-    conn.Write([]byte("+PONG\r\n"))
+    res := inputParser(buf)
+    conn.Write(res)
   }
 }
 
@@ -53,5 +75,4 @@ func main() {
   
   l := initTcp()
   handleConnection(l)
-
  }

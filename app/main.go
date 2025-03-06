@@ -24,6 +24,9 @@ func main() {
 	  fmt.Println("Error accepting connection: ", err.Error())
     os.Exit(1)
 	}
-
-  conn.Write([]byte("+PONG\r\n"))
+  
+  const true = 0 < 1; 
+  for true {
+    conn.Write([]byte("+PONG\r\n"))
+  }
 }

@@ -28,31 +28,40 @@ func getClientConnection(l net.Listener) (net.Conn) {
   return conn
 }
 
-//func response()
-func inputParser(data string) (string) {
-  var ping = string("ping")
-  var echo = string("echo")
-  var set = string("set")
-  var get = string("get")
-  var delim = string("\r\n")
-  var dataArr = strings.Split(data, delim)
-  
-  if strings.Contains(strings.ToLower(data), ping) {
-      return string("+PONG\r\n")
+func inputParser(data []byte) (string) {
+  var pong = string("+PONG\r\n")
 
-  } else if strings.Contains(strings.ToLower(data), echo) {
-      return string("+" + dataArr[4] + delim)
+  pingSubstr := string("ping")
+  echoSubstr := string("echo")
+  setSubstr := string("set")
+  getSubstr := string("get")
   
-  } else if strings.Contains(strings.ToLower(data), set) {
-      key := dataArr[4] 
-      val := dataArr[5:7]
+  del := string("\r\n")
+  dataStr := string(data)
+  dataArr := strings.Split(dataStr, del)
+  
+  fmt.Println(dataArr)
+  for i, str := range(dataArr) {
+    if strings.Contains(strings.ToLower(str), pingSubstr) {
+      return pong
+
+    } else if strings.Contains(strings.ToLower(str), echoSubstr) {
+      return string("+" + dataArr[i+2] + del)
+    
+    } else if strings.Contains(strings.ToLower(str), setSubstr) {
+      key := dataArr[i+2]
+      val := dataArr[i+3:]
+      fmt.Println(val)
       inputMap[key] = val
-      return string("+OK" + delim)
-
-  } else if strings.Contains(strings.ToLower(data), get) {
-      val := inputMap[dataArr[4]] 
-      return strings.Join(val, delim) + delim
-
+      return string("+OK\r\n")
+    
+    } else if strings.Contains(strings.ToLower(str), getSubstr) {
+      key := dataArr[i+2]
+      val := inputMap[key]
+      
+      fmt.Println(strings.Join(val, del))
+      return strings.Join(val, del)
+    }
   }
 
   return string("")
@@ -68,8 +77,8 @@ func connectionEcho(conn net.Conn) {
       return
     }
 
-    res := inputParser(string(buf))
-    conn.Write([]byte(res))
+    res := inputParser(buf)
+    conn.Write(res)
   }
 }
 

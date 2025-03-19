@@ -5,14 +5,9 @@ import (
 	"sync"
 )
 
-type Config struct {
-	Dir			string
-	DBFilename	string
-}
-
 var (
 	instance *Config
-	once 	 sync.Once
+	once     sync.Once
 )
 
 func GetConfig() *Config {
@@ -23,4 +18,9 @@ func GetConfig() *Config {
 		flag.Parse()
 	})
 	return instance
+}
+
+type Config struct {
+	Dir        string
+	DBFilename string
 }

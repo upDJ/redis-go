@@ -1,93 +1,67 @@
 package utils
 
 import (
-	"fmt"
+	"github.com/codecrafters-io/redis-starter-go/app/config"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 )
-
-var (
-	inputMap map[string]map[string]string
-	once     sync.Once
-)
-
-// {'foo': {"length": "","val": "", "expiryFlag": "", "expiry": ""}}
-
-// getInputMap initializes inputMap only once and returns it.
-func getInputMap() map[string]map[string]string {
-	once.Do(func() {
-		inputMap = make(map[string]map[string]string)
-	})
-	return inputMap
-}
 
 func getCurrentTime() time.Time {
 	currentTime := time.Now()
 	return currentTime
 }
 
+func getExpiryTime(expiryArg string) string {
+	expiryMs, _ := strconv.ParseInt(expiryArg, 10, 64)
+	currentTime := getCurrentTime()
+	expiryTime := currentTime.Add(time.Duration(expiryMs) * time.Millisecond)
+	return expiryTime.Format(time.RFC3339Nano)
+}
+
 func InputParser(data string) string {
-	var ping = string("ping")
-	var echo = string("echo")
-	var set = string("set")
-	var get = string("get")
-	var delim = string("\r\n")
-	var nullBulk = string("$-1\r\n")
+	inputMap := GetInstance()
 
-	var dataArr = strings.Split(data, delim)
-	args := dataArr[0]
-	fmt.Println(dataArr, data)
-	inputMap := getInputMap()
+	respObj := Resp{}
+	tokenList := respObj.DecodeData(data)
 
-	if strings.Contains(strings.ToLower(data), ping) {
-		return string("+PONG\r\n")
-
-	} else if strings.Contains(strings.ToLower(data), echo) {
-		return string("+" + dataArr[4] + delim)
-
-	} else if strings.Contains(strings.ToLower(data), set) {
-		key := dataArr[4]
-		if _, exists := inputMap[key]; !exists {
-			inputMap[key] = make(map[string]string)
+	switch tokenList[2] {
+	case "ping":
+		return "+PONG\r\n"
+	case "echo":
+		echo := []string{tokenList[4]}
+		encodedEcho := respObj.EncodeData(echo)
+		return encodedEcho
+	case "set":
+		ParsedInputObj := ParsedInput{args: tokenList[0], key: tokenList[4], val: tokenList[6]}
+		if ParsedInputObj.args == "*5" {
+			ParsedInputObj.expiryFlag = tokenList[8]
+			ParsedInputObj.expiryTime = getExpiryTime(tokenList[10])
 		}
-		valLength := dataArr[5]
-		val := dataArr[6]
-
-		if args == "*5" {
-			expiryFlag := dataArr[8]
-			expiryMs, _ := strconv.ParseInt(dataArr[10], 10, 64)
-			currentTime := getCurrentTime()
-			expiryTime := currentTime.Add(time.Duration(expiryMs) * time.Millisecond)
-			expiryTimeStr := expiryTime.Format(time.RFC3339Nano)
-			inputMap[key]["expiryFlag"] = expiryFlag
-			inputMap[key]["expiry"] = expiryTimeStr
+		response := inputMap.InsertData(ParsedInputObj)
+		return response
+	case "get":
+		key := tokenList[4]
+		ParsedInputObj := inputMap.GetData(key)
+		if ParsedInputObj.nullBulk != "" {
+			return ParsedInputObj.nullBulk
 		}
-
-		inputMap[key]["valLength"] = valLength
-		inputMap[key]["val"] = val
-
-		return string("+OK" + delim)
-
-	} else if strings.Contains(strings.ToLower(data), get) {
-		key := dataArr[4]
-		valDict := inputMap[key]
-		val := valDict["val"]
-    valLength := valDict["valLength"]
-
-		if expiry, exists := valDict["expiry"]; exists {
-			currentTime := getCurrentTime()
-			if parsedExpiryTime, err := time.Parse(time.RFC3339Nano, expiry); err == nil {
-				if parsedExpiryTime.Before(currentTime) {
-          fmt.Println(parsedExpiryTime, currentTime)
-          fmt.Println("Return Null Bulk", nullBulk)
-					return nullBulk
-				}
+		return respObj.EncodeData(ParsedInputObj.toGetArr())
+	case "config":
+		config := config.GetConfig()
+		switch tokenList[4] {
+		case "get":
+			switch tokenList[6] {
+			case "dir":
+				configDir := []string{"dir", config.Dir}
+				encodedConfigDir := respObj.EncodeData(configDir)
+				return encodedConfigDir
+			case "dbfilename":
+				configDB := []string{"dbfilename", config.DBFilename}
+				encodedConfigDB := respObj.EncodeData(configDB)
+				return encodedConfigDB
 			}
 		}
-		return valLength + delim + val + delim
 	}
 
-	return string("")
+	return string("-1")
 }
